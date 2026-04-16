@@ -114,7 +114,7 @@ function App() {
 
   return (
     <div style={{ maxWidth: 600, margin: '2rem auto', fontFamily: 'sans-serif' }}>
-      <h1>Meu Produto</h1>
+      <h1>CURSO IA SÃO LOURENÇO</h1>
 
       {/* Checklist de status */}
       <div style={{
