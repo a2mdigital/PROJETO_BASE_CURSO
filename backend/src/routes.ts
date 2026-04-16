@@ -20,6 +20,32 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
+  // Health de migrations — lista versões aplicadas
+  app.get('/health/migrations', async (_request, reply) => {
+    try {
+      const result = await pool.query('SELECT version, name, applied_at FROM migrations ORDER BY version');
+      return { status: 'ok', migrations: result.rows };
+    } catch (error) {
+      return reply.status(500).send({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Erro desconhecido',
+      });
+    }
+  });
+
+  // Health de select — confirma que a tabela items existe e é consultável
+  app.get('/health/select', async (_request, reply) => {
+    try {
+      const result = await pool.query('SELECT COUNT(*) AS total FROM items');
+      return { status: 'ok', total: Number(result.rows[0].total) };
+    } catch (error) {
+      return reply.status(500).send({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Erro desconhecido',
+      });
+    }
+  });
+
   app.get('/api/items', async () => {
     const result = await pool.query('SELECT * FROM items ORDER BY criado_em DESC');
     return result.rows;

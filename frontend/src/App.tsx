@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getItems, createItem, checkBackend, checkDatabase } from './api';
+import { getItems, createItem, checkBackend, checkDatabase, checkMigrations, checkSelect } from './api';
 
 interface Item {
   id: number;
@@ -13,6 +13,16 @@ interface HealthChecks {
   frontend: CheckStatus;
   backend: CheckStatus;
   database: CheckStatus;
+  migrations: CheckStatus;
+  select: CheckStatus;
+}
+
+interface MigrationsInfo {
+  versions: number[];
+}
+
+interface SelectInfo {
+  total: number;
 }
 
 function StatusIcon({ status }: { status: CheckStatus }) {
@@ -29,7 +39,11 @@ function App() {
     frontend: 'pending',
     backend: 'pending',
     database: 'pending',
+    migrations: 'pending',
+    select: 'pending',
   });
+  const [migrationsInfo, setMigrationsInfo] = useState<MigrationsInfo>({ versions: [] });
+  const [selectInfo, setSelectInfo] = useState<SelectInfo>({ total: 0 });
 
   useEffect(() => {
     runHealthChecks();
@@ -53,8 +67,23 @@ function App() {
     const dbOk = await checkDatabase();
     setChecks(prev => ({ ...prev, database: dbOk ? 'ok' : 'error' }));
 
-    // Se tudo ok, carrega os itens
-    if (dbOk) {
+    if (!dbOk) {
+      setChecks(prev => ({ ...prev, migrations: 'error', select: 'error' }));
+      setLoading(false);
+      return;
+    }
+
+    // 4. Migrations — verifica versões aplicadas
+    const migrationsResult = await checkMigrations();
+    setChecks(prev => ({ ...prev, migrations: migrationsResult.ok ? 'ok' : 'error' }));
+    setMigrationsInfo({ versions: migrationsResult.versions });
+
+    // 5. SELECT na tabela items
+    const selectResult = await checkSelect();
+    setChecks(prev => ({ ...prev, select: selectResult.ok ? 'ok' : 'error' }));
+    setSelectInfo({ total: selectResult.total });
+
+    if (selectResult.ok) {
       await fetchItems();
     } else {
       setLoading(false);
@@ -63,9 +92,14 @@ function App() {
 
   async function fetchItems() {
     setLoading(true);
-    const data = await getItems();
-    setItems(data);
-    setLoading(false);
+    try {
+      const data = await getItems();
+      setItems(Array.isArray(data) ? data : []);
+    } catch {
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -76,7 +110,7 @@ function App() {
     await fetchItems();
   }
 
-  const allOk = checks.frontend === 'ok' && checks.backend === 'ok' && checks.database === 'ok';
+  const allOk = checks.frontend === 'ok' && checks.backend === 'ok' && checks.database === 'ok' && checks.migrations === 'ok' && checks.select === 'ok';
 
   return (
     <div style={{ maxWidth: 600, margin: '2rem auto', fontFamily: 'sans-serif' }}>
@@ -100,6 +134,24 @@ function App() {
           </li>
           <li style={{ padding: '0.3rem 0' }}>
             Conexão com o Banco de Dados — <StatusIcon status={checks.database} />
+          </li>
+          <li style={{ padding: '0.3rem 0' }}>
+            Migrations aplicadas —{' '}
+            <StatusIcon status={checks.migrations} />
+            {checks.migrations === 'ok' && (
+              <span style={{ color: '#666', fontSize: '0.85rem', marginLeft: 6 }}>
+                (v{migrationsInfo.versions.join(', v')})
+              </span>
+            )}
+          </li>
+          <li style={{ padding: '0.3rem 0' }}>
+            SELECT na tabela items —{' '}
+            <StatusIcon status={checks.select} />
+            {checks.select === 'ok' && (
+              <span style={{ color: '#666', fontSize: '0.85rem', marginLeft: 6 }}>
+                ({selectInfo.total} registro{selectInfo.total !== 1 ? 's' : ''})
+              </span>
+            )}
           </li>
         </ul>
       </div>

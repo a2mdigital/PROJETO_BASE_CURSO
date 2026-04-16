@@ -18,6 +18,28 @@ export async function checkDatabase(): Promise<boolean> {
   }
 }
 
+export async function checkMigrations(): Promise<{ ok: boolean; versions: number[] }> {
+  try {
+    const res = await fetch(`${BASE_URL}/health/migrations`);
+    if (!res.ok) return { ok: false, versions: [] };
+    const data = await res.json();
+    return { ok: true, versions: data.migrations.map((m: { version: number }) => m.version) };
+  } catch {
+    return { ok: false, versions: [] };
+  }
+}
+
+export async function checkSelect(): Promise<{ ok: boolean; total: number }> {
+  try {
+    const res = await fetch(`${BASE_URL}/health/select`);
+    if (!res.ok) return { ok: false, total: 0 };
+    const data = await res.json();
+    return { ok: true, total: data.total };
+  } catch {
+    return { ok: false, total: 0 };
+  }
+}
+
 export async function getItems() {
   const res = await fetch(`${BASE_URL}/api/items`);
   return res.json();
